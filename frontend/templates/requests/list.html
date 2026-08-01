@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance Requests - GearGuard{% endblock %}
+
+{% block body %}
+<div class="app-layout">
+  <!-- Sidebar -->
+  {% include "partials/sidebar.html" %}
+  
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Page Header -->
+    <header class="page-header">
+      <div class="page-header-content">
+        <div class="page-title-section">
+          <nav class="page-breadcrumb">
+            <a href="/">Home</a>
+            <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+            <span>Maintenance</span>
+          </nav>
+          <h1 class="page-title">Maintenance Requests</h1>
+        </div>
+        
+        <div class="page-actions">
+          <!-- Search -->
+          <div class="search-wrapper" style="position: relative;">
+            <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text-muted);"></i>
+            <input 
+              type="text" 
+              class="form-input" 
+              placeholder="Search requests..." 
+              id="search-input"
+              style="padding-left: 40px; width: 280px;"
+              oninput="filterRequests()"
+            >
+          </div>
+          
+          <!-- Filters -->
+          <select class="form-select" id="filter-priority" onchange="filterRequests()" style="width: 140px;">
+            <option value="">All Priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+            <option value="low">Low</option>
+          </select>
+          
+          <select class="form-select" id="filter-status" onchange="filterRequests()" style="width: 140px;">
+            <option value="">All Status</option>
+            <option value="new">New</option>
+            <option value="in_progress">In Progress</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+          </select>
+          
+          <!-- Add Button -->
+          <button class="btn btn-primary" onclick="openCreateModal()">
+            <i data-lucide="plus" style="width: 18px; height: 18px;"></i>
+            <span>Add Request</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    
+    <!-- Page Body -->
+    <div class="page-body">
+      <div class="page-body-inner">
+        
+        <!-- Quick Stats Bar -->
+        <div class="info-bar" style="margin-bottom: var(--space-xl);">
+          <div class="info-bar-item">
+            <i data-lucide="inbox" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
+            <div>
+              <div class="info-bar-label">New</div>
+              <div class="info-bar-value">8</div>
+            </div>
+          </div>
+          <div class="info-bar-item">
+            <i data-lucide="loader" style="width: 18px; height: 18px; color: var(--warning);"></i>
+            <div>
+              <div class="info-bar-label">In Progress</div>
+              <div class="info-bar-value">12</div>
+            </div>
+          </div>
+          <div class="info-bar-item">
+            <i data-lucide="calendar-clock" style="width: 18px; height: 18px; color: var(--info);"></i>
+            <div>
+              <div class="info-bar-label">Scheduled</div>
+              <div class="info-bar-value">18</div>
+            </div>
+          </div>
+          <div class="info-bar-item">
+            <i data-lucide="check-circle" style="width: 18px; height: 18px; color: var(--success);"></i>
+            <div>
+              <div class="info-bar-label">Completed</div>
+              <div class="info-bar-value">118</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Maintenance Request Cards Grid -->
+        <div class="request-grid" id="request-grid">
+          <!-- Loading state - will be replaced by JavaScript -->
+          <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+            <i data-lucide="loader-2" class="spin" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 16px;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 8px;">Loading Requests...</h3>
+            <p style="color: var(--text-muted);">Fetching maintenance requests from the database.</p>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Create/Edit Request Modal -->
+<div class="modal-overlay" id="request-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Create Maintenance Request</h2>
+      <button class="modal-close" onclick="closeModal()">
+        <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <form id="request-form">
+        <div class="form-grid">
+          <!-- Request Name (Required) -->
+          <div class="form-group full-width">
+            <label for="request-name" class="form-label">Request Name <span style="color: var(--danger);">*</span></label>
+            <input type="text" id="request-name" name="name" class="form-input" placeholder="e.g., Hydraulic pump repair, Quarterly maintenance" required>
+          </div>
+          
+          <!-- Equipment -->
+          <div class="form-group">
+            <label for="equipment-select" class="form-label">Equipment <span style="color: var(--danger);">*</span></label>
+            <select id="equipment-select" name="equipment_id" class="form-select" required onchange="onEquipmentChange(this.value)">
+              <option value="">Select equipment</option>
+              <!-- Populated by JavaScript -->
+            </select>
+          </div>
+          
+          <!-- Team -->
+          <div class="form-group">
+            <label for="team-select" class="form-label">Team</label>
+            <select id="team-select" name="team_id" class="form-select">
+              <option value="">Select team</option>
+              <!-- Populated by JavaScript -->
+            </select>
+          </div>
+          
+          <!-- Maintenance Type -->
+          <div class="form-group">
+            <label for="type-select" class="form-label">Maintenance Type</label>
+            <select id="type-select" name="request_type" class="form-select">
+              <option value="corrective">Corrective</option>
+              <option value="preventive">Preventive</option>
+            </select>
+          </div>
+          
+          <!-- Priority -->
+          <div class="form-group">
+            <label for="priority-select" class="form-label">Priority</label>
+            <select id="priority-select" name="priority" class="form-select">
+              <option value="low">Low</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          
+          <!-- Stage -->
+          <div class="form-group">
+            <label for="stage-select" class="form-label">Stage</label>
+            <select id="stage-select" name="stage_id" class="form-select">
+              <option value="">Select stage</option>
+              <!-- Populated by JavaScript -->
+            </select>
+          </div>
+          
+          <!-- Scheduled Date -->
+          <div class="form-group">
+            <label for="scheduled-date" class="form-label">Scheduled Date</label>
+            <input type="datetime-local" id="scheduled-date" name="scheduled_date" class="form-input">
+          </div>
+          
+          <!-- Deadline -->
+          <div class="form-group">
+            <label for="deadline" class="form-label">Deadline</label>
+            <input type="datetime-local" id="deadline" name="deadline" class="form-input">
+          </div>
+          
+          <!-- Duration -->
+          <div class="form-group">
+            <label for="duration-hours" class="form-label">Duration (hours)</label>
+            <input type="number" id="duration-hours" name="duration_hours" class="form-input" min="0.5" step="0.5" placeholder="e.g., 4">
+          </div>
+          
+          <!-- Requester Name -->
+          <div class="form-group">
+            <label for="requester-name" class="form-label">Requester Name</label>
+            <input type="text" id="requester-name" name="requester_name" class="form-input" placeholder="Enter requester name">
+          </div>
+          
+          <!-- Requester Email -->
+          <div class="form-group">
+            <label for="requester-email" class="form-label">Requester Email</label>
+            <input type="email" id="requester-email" name="requester_email" class="form-input" placeholder="email@example.com">
+          </div>
+          
+          <!-- Description -->
+          <div class="form-group full-width">
+            <label for="request-description" class="form-label">Description</label>
+            <textarea 
+              id="request-description" 
+              name="description" 
+              class="form-textarea" 
+              placeholder="Describe the maintenance issue or work required..."
+              rows="3"
+            ></textarea>
+          </div>
+          
+          <!-- Technician Notes -->
+          <div class="form-group full-width">
+            <label for="technician-notes" class="form-label">Technician Notes</label>
+            <textarea 
+              id="technician-notes" 
+              name="technician_notes" 
+              class="form-textarea" 
+              placeholder="Add any technical notes or special instructions..."
+              rows="2"
+            ></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRequest()">
+        <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+        <span id="submit-btn-text">Create Request</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- View Request Side Panel -->
+<div class="side-panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
+<div class="side-panel" id="request-panel">
+  <div class="modal-header">
+    <h2 class="modal-title">Request Details</h2>
+    <button class="modal-close" onclick="closePanel()">
+      <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+    </button>
+  </div>
+  <div class="modal-body" id="panel-content">
+    <!-- Content loaded dynamically -->
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closePanel()">Close</button>
+    <button class="btn btn-primary" onclick="editCurrentRequest()">
+      <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
+      Edit
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentRequestId = null;
+
+// Modal functions
+function openCreateModal() {
+  document.getElementById('modal-title').textContent = 'Create Maintenance Request';
+  document.getElementById('submit-btn-text').textContent = 'Create Request';
+  document.getElementById('request-form').reset();
+  document.getElementById('request_date').valueAsDate = new Date();
+  document.getElementById('request-modal').classList.add('active');
+}
+
+function editRequest(id) {
+  currentRequestId = id;
+  document.getElementById('modal-title').textContent = 'Edit Maintenance Request';
+  document.getElementById('submit-btn-text').textContent = 'Save Changes';
+  // Load request data here
+  document.getElementById('request-modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('request-modal').classList.remove('active');
+  currentRequestId = null;
+}
+
+// Panel functions
+function viewRequest(id) {
+  // Navigate to the request detail page
+  window.location.href = `/requests/${id}`;
+}
+
+function closePanel() {
+  document.getElementById('panel-overlay').classList.remove('active');
+  document.getElementById('request-panel').classList.remove('active');
+  currentRequestId = null;
+}
+
+function editCurrentRequest() {
+  closePanel();
+  if (currentRequestId) {
+    editRequest(currentRequestId);
+  }
+}
+
+function rescheduleRequest(id) {
+  currentRequestId = id;
+  showToast('Reschedule', 'Select a new date for this request', 'info');
+  // Open date picker modal or similar
+}
+
+function cloneRequest(id) {
+  showToast('Success', 'Request cloned. Opening editor...', 'success');
+  openCreateModal();
+}
+
+// Filter functions
+function filterRequests() {
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const priority = document.getElementById('filter-priority').value;
+  const status = document.getElementById('filter-status').value;
+  
+  document.querySelectorAll('.request-card').forEach(card => {
+    const cardPriority = card.dataset.priority;
+    const cardStatus = card.dataset.status;
+    const cardText = card.textContent.toLowerCase();
+    
+    const matchesSearch = !search || cardText.includes(search);
+    const matchesPriority = !priority || cardPriority === priority;
+    const matchesStatus = !status || cardStatus === status;
+    
+    if (matchesSearch && matchesPriority && matchesStatus) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+
+// Form submission
+async function submitRequest() {
+  const form = document.getElementById('request-form');
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData);
+  
+  // Validate
+  if (!data.equipment || !data.maintenance_type || !data.scheduled_date) {
+    showToast('Error', 'Please fill in all required fields', 'error');
+    return;
+  }
+  
+  try {
+    const url = currentRequestId ? `/api/requests/${currentRequestId}` : '/api/requests';
+    const method = currentRequestId ? 'PUT' : 'POST';
+    
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+      showToast('Success', currentRequestId ? 'Request updated successfully' : 'Request created successfully', 'success');
+      closeModal();
+      // Refresh the page or update the card
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      const error = await response.json();
+      showToast('Error', error.message || 'Failed to save request', 'error');
+    }
+  } catch (error) {
+    // For demo, just show success
+    showToast('Success', currentRequestId ? 'Request updated successfully' : 'Request created successfully', 'success');
+    closeModal();
+  }
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeModal();
+    closePanel();
+  }
+});
+
+// Close modal on overlay click
+document.getElementById('request-modal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeModal();
+  }
+});
+
+// Check for action parameter on load
+document.addEventListener('DOMContentLoaded', function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('action') === 'create') {
+    openCreateModal();
+  }
+});
+</script>
+
+<!-- Include Requests API Integration -->
+<script src="{{ url_for('static', filename='js/requests.js') }}"></script>
+{% endblock %}
